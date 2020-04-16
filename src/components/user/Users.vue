@@ -31,12 +31,23 @@
             <el-switch v-model="scope.row.mg_state" @change="userStateChanged(scope.row)"></el-switch>
           </template>
         </el-table-column>
+        <!-- 操作区域 -->
         <el-table-column label="操作" width="180px">
           <template slot-scope="scope">
-            <el-button type="primary" icon="el-icon-edit" size="mini" @click="showEditDialog(scope.row.id)"></el-button>
-            <el-button type="danger" icon="el-icon-delete" size="mini" @click="deleteUser(scope.row.id)"></el-button>
+            <el-button
+              type="primary"
+              icon="el-icon-edit"
+              size="mini"
+              @click="showEditDialog(scope.row.id)"
+            ></el-button>
+            <el-button
+              type="danger"
+              icon="el-icon-delete"
+              size="mini"
+              @click="deleteUser(scope.row.id)"
+            ></el-button>
             <el-tooltip effect="dark" content="分配角色" placement="top-start" :enterable="false">
-              <el-button type="warning" icon="el-icon-setting" size="mini"></el-button>
+              <el-button type="warning" icon="el-icon-setting" size="mini" @click="editRoles(scope.row)"></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -54,18 +65,8 @@
     </el-card>
 
     <!-- 添加用户对话框 -->
-    <el-dialog
-      title="添加用户"
-      :visible.sync="addDialogVisible"
-      width="50%"
-      @close="addDialogClosed"
-    >
-      <el-form
-        :model="addForm"
-        :rules="addFormRules"
-        ref="addFormRef"
-        label-width="80px"
-      >
+    <el-dialog title="添加用户" :visible.sync="addDialogVisible" width="50%" @close="addDialogClosed">
+      <el-form :model="addForm" :rules="addFormRules" ref="addFormRef" label-width="80px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="addForm.username"></el-input>
         </el-form-item>
@@ -85,18 +86,8 @@
       </span>
     </el-dialog>
     <!-- 编辑用户对话框 -->
-    <el-dialog
-      title="添加用户"
-      :visible.sync="editDialogVisible"
-      width="50%"
-      @close="editDialogClosed"
-    >
-      <el-form
-        :model="editForm"
-        :rules="editFormRules"
-        ref="editFormRef"
-        label-width="80px"
-      >
+    <el-dialog title="添加用户" :visible.sync="editDialogVisible" width="50%" @close="editDialogClosed">
+      <el-form :model="editForm" :rules="editFormRules" ref="editFormRef" label-width="80px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="editForm.username" disabled></el-input>
         </el-form-item>
@@ -110,6 +101,27 @@
       <span slot="footer">
         <el-button @click="editDialogVisible = false">取 消</el-button>
         <el-button type="primary" @click="editUser">确 定</el-button>
+      </span>
+    </el-dialog>
+    <!-- 分配角色对话框 -->
+    <el-dialog title="分配角色" :visible.sync="rolesDialogVisible" @close="clearSelect" width="50%">
+      <div>
+        <p>用户名：{{userInfo.username}}</p>
+        <p>用户角色：{{userInfo.role_name}}</p>
+        <p>分配新角色：
+          <el-select v-model="selectedRoleId" placeholder="请选择">
+          <el-option
+            v-for="item in rolesList"
+            :key="item.id"
+            :label="item.roleName"
+            :value="item.id">
+          </el-option>
+        </el-select>
+        </p>
+      </div>
+      <span slot="footer">
+        <el-button @click="rolesDialogVisible = false">取 消</el-button>
+        <el-button type="primary" @click="ok_roles">确 定</el-button>
       </span>
     </el-dialog>
   </div>
@@ -159,11 +171,21 @@ export default {
       addFormRules: {
         username: [
           { required: true, message: '请输入用户名', trigger: 'blur' },
-          { min: 3, max: 7, message: '用户名长度在3~7个字符之间', trigger: 'blur' }
+          {
+            min: 3,
+            max: 7,
+            message: '用户名长度在3~7个字符之间',
+            trigger: 'blur'
+          }
         ],
         password: [
           { required: true, message: '请输入密码', trigger: 'blur' },
-          { min: 6, max: 15, message: '密码长度在6~15个字符之间', trigger: 'blur' }
+          {
+            min: 6,
+            max: 15,
+            message: '密码长度在6~15个字符之间',
+            trigger: 'blur'
+          }
         ],
         email: [
           { required: true, message: '请输入密码', trigger: 'blur' },
@@ -177,7 +199,12 @@ export default {
       editFormRules: {
         username: [
           { required: true, message: '请输入用户名', trigger: 'blur' },
-          { min: 3, max: 7, message: '用户名长度在3~7个字符之间', trigger: 'blur' }
+          {
+            min: 3,
+            max: 7,
+            message: '用户名长度在3~7个字符之间',
+            trigger: 'blur'
+          }
         ],
         email: [
           { required: true, message: '请输入密码', trigger: 'blur' },
@@ -187,7 +214,15 @@ export default {
           { required: true, message: '请输入密码', trigger: 'blur' },
           { validator: checkMobile, trigger: 'blur' }
         ]
-      }
+      },
+      // 控制分配角色对话框
+      rolesDialogVisible: false,
+      // 存储用户信息
+      userInfo: '',
+      // 角色列表数据
+      rolesList: [],
+      // 选中的角色id
+      selectedRoleId: ''
     }
   },
   created () {
@@ -245,7 +280,7 @@ export default {
     // 根据id获取要编辑的用户信息
     async showEditDialog (id) {
       const { data: res } = await this.$http.get('users/' + id)
-      if (res.meta.status !== 200) return this.$message.error('请求用户信息失败')
+      if (res.meta.status !== 200) { return this.$message.error('请求用户信息失败') }
       this.editForm = res.data
       this.editDialogVisible = true
     },
@@ -257,11 +292,14 @@ export default {
       this.$refs.editFormRef.validate(async valid => {
         // console.log(valid)
         if (!valid) return
-        const { data: res } = await this.$http.put('users/' + this.editForm.id, {
-          email: this.editForm.email,
-          mobile: this.editForm.mobile
-        })
-        if (res.meta.status !== 200) return this.$message.error('更新用户信息失败')
+        const { data: res } = await this.$http.put(
+          'users/' + this.editForm.id,
+          {
+            email: this.editForm.email,
+            mobile: this.editForm.mobile
+          }
+        )
+        if (res.meta.status !== 200) { return this.$message.error('更新用户信息失败') }
         this.$message.success('更新用户信息成功')
         this.getUserList()
         this.editDialogVisible = false
@@ -270,17 +308,46 @@ export default {
     // 根据id删除用户
     async deleteUser (id) {
       // 弹框提示用户是否删除
-      const confirmInfo = await this.$confirm('此操作将永久删除该用户, 是否继续?', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).catch(res => res)
+      const confirmInfo = await this.$confirm(
+        '此操作将永久删除该用户, 是否继续?',
+        '提示',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      ).catch(res => res)
       console.log(confirmInfo)
       if (confirmInfo !== 'confirm') return this.$message.info('已取消删除')
       const { data: res } = await this.$http.delete('users/' + id)
       if (res.meta.status !== 200) return this.$message.error('删除用户失败')
       this.getUserList()
       this.$message.success('成功删除用户')
+    },
+    // 分配角色
+    async editRoles (role) {
+      // 将用户信息存储到userIfo
+      this.userInfo = role
+      // 获取角色列表
+      const { data: res } = await this.$http.get('roles')
+      if (res.meta.status !== 200) return this.$message.error('获取角色列表失败')
+      this.rolesList = res.data
+      this.rolesDialogVisible = true
+    },
+    // 点击确定按钮，分配角色
+    async ok_roles () {
+      if (!this.selectedRoleId) return this.$message.error('请选择要分配的角色！')
+      // console.log(this.selectedRoleId)
+      const { data: res } = await this.$http.put(`users/${this.userInfo.id}/role`, { rid: this.selectedRoleId })
+      if (res.meta.status !== 200) return this.$message.error('更新角色失败！')
+      this.$message.success('更新角色成功！')
+      this.getUserList()
+      this.rolesDialogVisible = false
+    },
+    // 关闭对话框时重置select的内容
+    clearSelect () {
+      this.userInfo = ''
+      this.selectedRoleId = ''
     }
   }
 }
