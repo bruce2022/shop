@@ -62,8 +62,7 @@
         <el-form-item label="分类名称" prop="cat_name">
           <el-input v-model="addCateForm.cat_name"></el-input>
         </el-form-item>
-        <!-- 级联选择器有问题 -->
-        <!-- <el-form-item label="父级分类:">
+        <el-form-item label="父级分类:">
           <el-cascader
           v-model="selectedKeys"
           :options="parentCateList"
@@ -72,7 +71,7 @@
           clearable
           @change="parentCateChanged">
           </el-cascader>
-        </el-form-item> -->
+        </el-form-item>
       </el-form>
       <span slot="footer">
         <el-button @click="addDialogVisible = false">取 消</el-button>
@@ -179,11 +178,11 @@ export default {
       console.log(res.data)
       // 显示添加分类对话框
       this.addDialogVisible = true
-    }
+    },
     // 级联选择器选择父类分类
-    // parentCateChanged () {
-    //   console.log(this.selectedKeys)
-    // }
+    parentCateChanged () {
+      console.log(this.selectedKeys)
+    }
   }
 }
 </script>
